@@ -5,7 +5,7 @@ void main()
   int i;
   do
   {
-    printf("What is your name? ");
+    printf("What's your name? ");
     scanf("%s", Name);
     do
     {
