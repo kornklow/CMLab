@@ -1,0 +1,106 @@
+#include <stdio.h>
+#include<time.h>
+
+typedef struct Data
+{
+  	char name[64];
+  	double carbo;             //carbohydrate
+  	double fat;              //fat
+  	double protein;             //protein
+  	double dish_size;          //dize size in gram
+	double cost;               //cost in bath unit
+	double kcal;            //calory per dish
+}data;
+
+//variables
+data menu[32];
+const int * meal[] = {0,1,2,3,4,5,6,7,8,6,10,11,12,13,14,15,16,17,18,16,20,21,22,23,24,25,26,27,28,26,30,31};
+double max_fitness = 0;
+double total_cost = 600;   //300 * 7
+double total_kcal = 3000;  // 1500 * 7
+//int show_max[3];
+
+//function
+void readfile()
+{
+    FILE * file1;                   //input data
+    int i;
+    int j=0;
+
+    file1 = fopen("cuisine.txt","r");
+    if (file1 == NULL)
+    {
+        printf("Sorry,I can't read file\n");
+        exit(0);
+    }
+    //read file and get data
+    for(i=0;i<32;i++)
+    {
+        fscanf(file1,"%s %lf %lf %lf %lf %lf %lf",menu[i].name,&menu[i].carbo,&menu[i].fat,&menu[i].protein,&menu[i].dish_size,&menu[i].cost,&menu[i].kcal);
+        printf("%s %lf %lf %lf %lf %lf %lf\n",menu[i].name,menu[i].carbo,menu[i].fat,menu[i].protein,menu[i].dish_size,menu[i].cost,menu[i].kcal);
+    }
+    fclose(file1);
+}
+
+double choose(int * got, int n_chosen, int len, int at, int max_types)
+{
+        int i;
+        int j =0;
+        double fittemp = 0, cost = 0 , kcal = 0;
+
+        //printf("n_chosen = %d\n",n_chosen);
+        if (n_chosen == len)
+        {
+             //printf("if n_chosen = %d\n",n_chosen);
+            if (!got)
+            {
+                return 1;
+            }
+            for (i = 0; i < len; i++)
+            {
+                fittemp += (menu[got[i]].carbo+menu[got[i]].fat+menu[got[i]].protein);
+                cost += menu[got[i]].cost;
+                kcal += menu[got[i]].kcal;
+                //printf("%.2lf\t", menu[got[i]].kcal);
+            }
+           //printf(" %.2lf",fittemp);
+            //printf(" %.2lf",cost);
+            //printf(" %.2lf",kcal);
+            //printf("\n");
+
+            //condition here
+            if(cost<=total_cost && kcal<=total_kcal &&fittemp > max_fitness)
+            {
+                max_fitness = fittemp;
+                printf(" max = %.2lf\n",max_fitness);
+            }
+
+            return 1;
+        }
+        for (i = at; i < max_types; i++)
+        {
+            if (got)
+            {
+                got[n_chosen] = i;
+                //printf("if got = %d\n",got[n_chosen]);
+            }
+            choose(got, n_chosen + 1, len, i, max_types);
+        }
+        return max_fitness;
+}
+
+int main()
+{
+        int chosen[6];
+        int i;
+		time_t start, end;
+		double useT;
+        readfile();
+        time (&start);
+        choose(chosen, 0, 6, 0, 32);
+        printf("\nmax fitness = %.2lf\n",choose(0, 0, 6, 0, 32));
+		time (&end);
+		useT = difftime (end,start);
+		printf("\nUse all time %.2lf sec.\n",useT*1000);
+        return 0;
+}

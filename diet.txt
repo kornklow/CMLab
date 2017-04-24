@@ -1,0 +1,675 @@
+#include<stdio.h>	//to use the printf function
+#include<conio.h>   //to use the getche function
+#include<stdlib.h>  //to use the rand function
+#include<time.h>
+#include<math.h>
+
+typedef struct Chrom            // creating the chromosome structure
+	{
+  short int bit[30];
+  int bit6[6];
+  double fitness; //all nutrient
+  int allCost;
+  double allCal;
+  }chrom_t;
+
+typedef struct Data
+  {
+  	char name[64];
+  	double car; //carbohydrate
+  	double fat; //fat
+  	double pro; //protein
+  	int dish_size;  //dize size in gram
+	int cost; //cost in bath unit
+	double kcal; // callory per dish
+  }data_t;
+
+char fileName[]="Output32.txt";
+data_t foods[32];
+int popNow=0;
+
+//can fix
+#define POP_SIZE 100
+int inputCal=1500;
+int inputMoney=600;
+int numGen=1;
+int perMutation=50;
+int numDel=1;
+
+chrom_t popCurrent[POP_SIZE];
+chrom_t popNext[POP_SIZE];
+chrom_t popTemp[POP_SIZE];
+chrom_t popTest[2];
+
+/*other function*/
+void readFile();
+void get_user_input();
+struct Chrom decode(chrom_t popcurrent);
+double calFitness(chrom_t popcurrent); //calAllCal
+int calCost(chrom_t popcurrent);
+double calCal(chrom_t popcurrent);
+void showData(chrom_t * popData);
+void swopData(chrom_t * popData);
+void deleteData(int numDelete, chrom_t * popData);
+void resetpopTest(chrom_t popData);
+void finalShow(chrom_t popData);
+void crossOver();
+
+void main()
+{
+	int i,j,k;
+	int count=0;
+	int row=0;
+	double useT;
+
+	time_t start, end;
+	srand(time(NULL));
+//  Read File
+    readFile();
+//	Get data from user
+	get_user_input();
+
+//  M1. Create first generation
+//  1.1 Random data -> by check with cost and cal
+time (&start);
+for(i=0;i<POP_SIZE;i++)
+{
+	while(1)
+	{
+	//random 21 menu in 126 bit
+    	for(j=0;j<30;j++)
+    	{
+	    	popCurrent[i].bit[j] = rand()%2;
+	        //popCurrent[i].bit21[j] = randomNum(0);
+    	}
+
+    //decode 30 to 6 meal
+    popCurrent[i]=decode(popCurrent[i]);
+
+//  1.2 Calculate fitness & allCost & allCal
+	popCurrent[i].fitness=calFitness(popCurrent[i]);
+    popCurrent[i].allCost=calCost(popCurrent[i]);
+    popCurrent[i].allCal=calCal(popCurrent[i]);
+
+    if(popCurrent[i].allCal<inputCal && popCurrent[i].allCost<inputMoney)
+    	{
+    	break;
+		}
+
+	}//end while
+}//end for
+
+	//set pop in Now equal POP_SIZE
+	popNow=POP_SIZE;
+//  1.3 Sort by fitnesss
+	swopData(&popCurrent);
+//	1.4	copy data to popNext
+	for(i=0;i<POP_SIZE;i++)
+	{
+		popNext[i]=popCurrent[i];
+	}
+//  1.5 Cut 20 value that least in popCurrent
+	deleteData(numDel,&popCurrent);
+// LOOP INTERRATION
+for(j=0;j<numGen;j++)
+{
+	printf("\nCOM : INTERATION %d -------------------------------------------\n",j+1);
+	printf("COM : popNow is %d\n",popNow);
+
+//  M2. Create NEW generation
+//  2.1 Crossover -> Random to pick 2 different parent -> new child by check Cost and cal
+	crossOver();  //keep crossdata in popTemp + Calculate new fitness and cost of Mutation + sort
+	//copy popTemp to popNext
+	count=0;
+	for(i=popNow-1;i<POP_SIZE;i++)
+	{
+		popNext[i]=popTemp[count];
+		count++;
+	}
+	popNow=POP_SIZE;
+	swopData(&popNext);
+	//Copy popNext to popCurrent
+	for(i=0;i<POP_SIZE;i++)
+	{
+	popCurrent[i]=popNext[i];
+	}
+	printf("\nCOM : gerate new gen already.");
+
+//  2.2 Mutation -> random popuration to has mutation -> if has, random row and position
+	mutationData(&popCurrent);
+
+//  2.3 Sort data by fitness  from fit H-L
+	swopData(&popCurrent);
+
+	//copy data to popNext before cut
+	for(i=0;i<POP_SIZE;i++)
+	{
+		popNext[i]=popCurrent[i];
+	}
+
+//  2.4 Cut some value that least in popCurrent
+	if(row!=numGen-1)
+	{
+		deleteData(numDel,&popCurrent);
+	}
+	row++;
+}//for iterration
+time (&end);
+useT = difftime (end,start);
+	for(i=0;i<POP_SIZE;i++)
+	{
+	popCurrent[i].fitness=calFitness(popCurrent[i]);
+    popCurrent[i].allCost=calCost(popCurrent[i]);
+    popCurrent[i].allCal=calCal(popCurrent[i]);
+    //printf("fit %lf Cost %d Cal")
+	}
+	swopData(&popCurrent);
+//show last result
+	//showData(&popCurrent);
+//  SHOW DATA TO USER
+	//system("cls");
+	finalShow(popCurrent[0]);/**/
+
+}//main
+
+/*-------------------------------------------------------------------------------------------------------------*/
+/*OTHER FUNCTION*/
+void readFile()
+{
+  FILE * fread=NULL;
+  int countMenu1=0;
+  //printf("COM : Open file name [%s]\n", fileName);
+  fread = fopen(fileName,"r");
+  int i;
+
+  if(fread==NULL)
+    {
+     // printf("COM : Cannot open file <%s>\n",fileName);
+      exit(0);
+    }
+
+  //can run
+  fscanf(fread,"%d",&countMenu1);
+  //printf("COM : Total foods have %d menu for choose in this program\n",countMenu1);
+
+  for(i=0;i<countMenu1;i++)
+  {
+    fscanf(fread,"%s %lf %lf %lf %d %d %lf",foods[i].name, &foods[i].car, &foods[i].fat, &foods[i].pro, &foods[i].dish_size, &foods[i].cost, &foods[i].kcal);
+    //printf("%d. %-40s %.2lf %.2lf %.2lf | %d | %d | %.2lf\n",i+1 ,foods[i].name, foods[i].car, foods[i].fat, foods[i].pro, foods[i].dish_size, foods[i].cost, foods[i].kcal);
+  }
+  fclose(fread);
+
+ // printf("COM : Read file already.\n");
+}
+
+void get_user_input()
+{
+	int calory = 0;
+    int expense = 0;
+    int iteration=0;
+    int percent=0;
+    int del=0;
+    char input[64];
+	while(1)
+	{
+    printf("Please input calorie in 1a day : ");
+	fgets(input,sizeof(input),stdin);
+	sscanf(input,"%d",&calory);
+	if(calory<1000)
+		{
+		printf("Please enter calory more 1000 kcal/day.\n");
+		}
+	else
+		{
+			break;
+		}
+	}
+	inputCal = calory*2;
+
+	while(1)
+	{
+	printf("Please input cost in a day : ");
+	fgets(input,sizeof(input),stdin);
+	sscanf(input,"%d",&expense);
+	if(expense<100)
+		{
+		printf("Please enter calory more 100/day.\n");
+		}
+	else
+		{
+			break;
+		}
+	}
+
+	inputMoney = expense*2;
+
+	while(1)
+	{
+	printf("Please input iteration : ");
+	fgets(input,sizeof(input),stdin);
+	sscanf(input,"%d",&iteration);
+	if(iteration<1)
+		{
+		printf("Please enter num iteration at least 1.\n");
+		}
+	else
+		{
+		break;
+		}
+	}
+	numGen=iteration;
+
+	while(1)
+	{
+	printf("Please input percent in mutation [0-100] : ");
+	fgets(input,sizeof(input),stdin);
+	sscanf(input,"%d",&percent);
+	if(percent<0 || percent>100)
+		{
+		printf("Please enter percent between 1 - 100\n");
+		}
+	else
+		{
+		break;
+		}
+	}
+	perMutation=100-percent;
+
+	while(1)
+	{
+	printf("Please input delete [0-80] : ");
+	fgets(input,sizeof(input),stdin);
+	sscanf(input,"%d",&del);
+	if(del<0||del>80)
+	{
+		printf("Please enter number data for delete 1 - 80\n");
+	}
+	else
+	{
+		break;
+	}
+
+	}
+	numDel=del;
+}
+
+
+struct Chrom decode(chrom_t popcurrent)
+{
+    int i,k;
+    int j=0;
+    int value = 0;
+    chrom_t ex;
+
+    ex = popcurrent;
+    //loop to keep value in value[i]
+    for(i=0;i<6;i++)
+    {
+		j = j+5;
+        //printf("j = %d\n",j);
+        for(k=0;k<5;k++)
+        {
+            value +=  (popcurrent.bit[j-k-1]*(pow(2,k)));
+        }
+		value+=1;// chang to menu 1 - 32
+        ex.bit6[i] = value;
+        //printf("popcurrent.value[%d] =  %d\n",i,ex.bit6[i]);
+        value = 0;
+        //printf("\n\n");
+
+    }
+    return ex;
+}
+
+double calFitness(chrom_t popcurrent) //calAllCal
+{
+    int j=0;
+    double fitnessValue = 0;
+	double fatG =0,carG=0,proG=0;
+
+	for(j=0;j<6;j++)
+    {
+        carG += foods[popcurrent.bit6[j]-1].car;
+        fatG += foods[popcurrent.bit6[j]-1].fat;
+        proG += foods[popcurrent.bit6[j]-1].pro;
+    }
+    fitnessValue = carG + fatG + proG;
+    //printf(" fitValue = %.2lf",fitnessValue);
+     //printf(" totalC = %.2lf",fitC);
+     //printf("\n");
+
+    return fitnessValue;
+}
+
+int calCost(chrom_t popcurrent)
+{
+	int j=0;
+	int allCost=0;
+
+	for(j=0;j<6;j++)
+	{
+		allCost += foods[popcurrent.bit6[j]-1].cost;
+		//printf("%d .. %d \n",j+1, foods[popcurrent.bit21[j]-1].cost);
+	}
+//	printf("allCost = %d\n",allCost);
+	return allCost;
+}
+
+double calCal(chrom_t popcurrent)
+{
+	int j=0;
+	double allCal=0;
+
+	for(j=0;j<6;j++)
+	{
+		allCal += foods[popcurrent.bit6[j]-1].kcal;
+		//printf("%d .. %d \n",j+1, foods[popcurrent.bit6[j]-1].cost);
+	}
+	printf("allCal = %.2lf\n",allCal);
+	return allCal;
+}
+
+void swopData(chrom_t * popData)
+{
+	int i,j,k;
+	chrom_t temp;
+	for(i=0;i<POP_SIZE;i++)
+	{
+		for(j=0;j<POP_SIZE-1;j++)
+		{
+		//	printf("before fitness %d %d",popcurrent[j].fitness,popcurrent[j+1].fitness);
+			if(popData[j].fitness < popData[j+1].fitness)
+			{
+				//swop temp=popcurrent[j]
+				for(k=0;k<30;k++)
+				{
+				temp.bit[k]=popData[j].bit[k];
+				}
+				for(k=0;k<6;k++)
+				{
+				temp.bit6[k]=popData[j].bit6[k];
+				}
+				temp.fitness=popData[j].fitness;
+				temp.allCost=popData[j].allCost;
+				temp.allCal=popData[j].allCal;
+
+				//swop popcurrent[j]=popcurrent[j+1]
+				for(k=0;k<30;k++)
+				{
+				popData[j].bit[k]=popData[j+1].bit[k];
+				}
+				for(k=0;k<6;k++)
+				{
+				popData[j].bit6[k]=popData[j+1].bit6[k];
+				}
+				popData[j].fitness=popData[j+1].fitness;
+				popData[j].allCost=popData[j+1].allCost;
+				popData[j].allCal=popData[j+1].allCal;
+
+				//swop popcurrent[j+1]=temp
+				for(k=0;k<30;k++)
+				{
+				popData[j+1].bit[k]=temp.bit[k];
+				}
+				for(k=0;k<6;k++)
+				{
+				popData[j+1].bit6[k]=temp.bit6[k];
+				}
+				popData[j+1].fitness=temp.fitness;
+				popData[j+1].allCost=temp.allCost;
+				popData[j+1].allCal=temp.allCal;
+			}
+			//printf("After fitness %.2lf %.2lf\n\n",popData[j].fitness,popData[j+1].fitness);
+		}
+	}
+	printf("COM : Swop data already.\n");
+	printf("high fitness: %lf\n",popData[0].fitness);
+}
+
+void deleteData(int numDelete, chrom_t * popData)
+{
+	int i=0,k=0;
+	if(numDelete>POP_SIZE)
+	{
+		printf("Cannot delete data more than %d/%d\n",numDelete,popNow);
+	}
+	for(i=POP_SIZE-numDelete;i<POP_SIZE;i++)
+	{
+		for(k=0;k<30;k++)
+		{
+			popData[i].bit[k]=0;
+		}
+		for(k=0;k<6;k++)
+		{
+			popData[i].bit6[k]=0;
+		}
+		popData[i].fitness=0;
+		popData[i].allCost=0;
+		popData[i].allCal=0;
+	}
+	popNow-=numDelete;
+	printf("\nCOM : population after delete  is %d\n", popNow);
+}
+
+void crossOver()
+{
+	int random1,random2;
+	int crosspoint;
+	int i,j;
+	int countTemp=0;
+//popCurrent popNext popTemp
+	//C. create data to popNext
+	while(1)
+	{
+		//C.1 random differrent parent
+		while(1)
+        {
+            random1=rand()%popNow; //popNow from popCurrent that still alive
+            random2=rand()%POP_SIZE;
+
+            if(random1 != random2)
+            {
+                break;
+            }
+        }
+		//C.2 random crosspoint
+		//while(1)
+		//{
+		crosspoint = ((rand()%30)+1);
+			/*if(crosspoint>1 && crosspoint<31)
+			{
+				break;
+			}*/
+		//}
+		//C.3 crossover
+		//crossing the bits before the cross point index
+		for(i=0;i<crosspoint;i++)
+        {
+        	popTest[0].bit[i]=popNext[random1].bit[i];
+        	popTest[1].bit[i]=popNext[random2].bit[i];
+    	}
+    	//crossing the bits after the cross point index
+    	for(i=crosspoint;i<30;i++)
+		{
+			popTest[1].bit[i]=popNext[random1].bit[i];
+        	popTest[0].bit[i]=popNext[random2].bit[i];
+		}
+		//C.4 decode
+    	popTest[0]=decode(popTest[0]);
+		popTest[1]=decode(popTest[1]);
+
+		//C.5 calculate fitness + cal + cost
+		popTest[0].fitness=calFitness(popTest[0]);
+    	popTest[0].allCost=calCost(popTest[0]);
+    	popTest[0].allCal=calCal(popTest[0]);
+
+		popTest[1].fitness=calFitness(popTest[1]);
+    	popTest[1].allCost=calCost(popTest[1]);
+    	popTest[1].allCal=calCal(popTest[1]);
+		//C.6 check if it more cal and cost than input go to new selecting
+		//check countTemp
+		if(popTest[0].allCost<inputMoney && popTest[0].allCal<inputCal)
+		{
+		popTemp[countTemp]=popTest[0];
+		resetpopTest(popTest[0]);
+		countTemp++;
+		}
+		if(countTemp==POP_SIZE)
+			{
+				break;
+			}
+		//check countTemp+1
+		if(popTest[1].allCost<inputMoney && popTest[1].allCal<inputCal)
+		{
+		popTemp[countTemp]=popTest[1];
+		resetpopTest(popTest[1]);
+		countTemp++;
+		}
+		//C.7 else it ok go out from infinity loop while
+		if(countTemp==POP_SIZE)
+			{
+				break;
+			}
+	}//while
+	//after crossover
+	swopData(&popTemp);
+
+	printf("\nCOM : CrossOver in popTemp Already.\n");
+}
+
+void resetpopTest(chrom_t popData)
+{
+	int i=0,k=0;
+
+	for(k=0;k<30;k++)
+		{
+		popData.bit[k]=0;
+		}
+	for(k=0;k<6;k++)
+		{
+		popData.bit6[k]=0;
+		}
+	popData.fitness=0;
+	popData.allCost=0;
+	popData.allCal=0;
+
+}
+
+void mutationData(chrom_t * popData)
+{
+	int random;
+	int i;
+	int row=0,col=0;
+	int bit6=0;
+
+	random = rand()%100;
+
+
+
+	if(random >= perMutation) // popbability 50%
+	{
+		row = rand()%POP_SIZE;
+		col = rand()%30;
+	//show old data
+	/*printf("COM : old data\n");
+	showData126(popData[row]);
+	showData1(popData[row]);*/
+
+		bit6=col/5;
+		if(col%5>0)
+		{
+			bit6++;
+		}
+		printf("\nMutation Random menu[%d] bit is %d/126  in Meal %d/21\n", row+1, col+1, bit6);
+
+
+		if(popData[row].bit[col]==1)
+		{
+			popData[row].bit[col]=0;
+		}
+		else
+		{
+			popData[row].bit[col]=1;
+		}
+
+	//decode
+	popData[row]=decode(popData[row]);
+
+	//new calculate
+	popData[row].fitness=calFitness(popData[row]);
+    popData[row].allCost=calCost(popData[row]);
+    popData[row].allCal=calCal(popData[row]);
+
+	//show new data
+	/*printf("COM : new data\n");
+	showData126(popData[row]);
+	showData1(popData[row]);*/
+
+	//swopdata
+	swopData(&popCurrent); //change it to pop next
+	//check if cal and cost if it not chang fitness to 0
+    if(popData[row].allCal>inputCal || popData[row].allCost>inputMoney)
+    	{
+    	popData[row].fitness=0;
+    	printf("COM : Data change and the value is not correct in condition.");
+		}
+	}
+
+	else // no mutation
+	{
+		printf("\nCOM : NO Mutation in this generation.");
+	}
+
+	printf("COM : Mutation already.\n");
+}
+void finalShow(chrom_t popData)
+{
+	int i,k=1;
+	int day=1;
+
+	printf("\n* ------------------------The best random for You----------------------------- *\n\n");
+
+	for(i=0;i<6;i++)
+	{
+		printf("DAY %d: Meal %d - > %-40s ",day, k, foods[popData.bit6[i]-1].name);
+		printf(" %-10.2lf kcal\n",foods[popData.bit6[i]].kcal);
+		k++;
+		if(k==4)
+		{
+		k=1;
+		day++;
+		printf("\n");
+		}
+
+	}
+	printf("\nMax fitness is %.2lf points\n",popData.fitness);
+	printf("Total callery is %.2f/%d kcal\n",popData.allCal,inputCal);
+	printf("Total cost is %d/%d bath.\n\n",popData.allCost,inputMoney);
+	printf("COM : Thank you");
+}
+
+void showData(chrom_t * popData)
+{
+  int  i,j,k=0;
+  for(i=0;i<POP_SIZE;i++)
+  {
+  printf("Random Menu %d : ",i+1);
+  for(j=0; j<6; j++)
+    {
+      printf(" %d",popData[i].bit6[j]);
+      k++;
+      if(k==3)
+      {
+        printf(" |");
+        k=0;
+      }
+      if(j==5)
+      {
+        printf("\n");
+      }
+    }
+  printf("Fitness %.2lf Cost %d Cal %.2lf\n",popData[i].fitness, popData[i].allCost, popData[i].allCal);
+  }
+
+}
+
